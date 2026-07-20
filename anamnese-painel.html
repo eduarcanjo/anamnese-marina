@@ -125,7 +125,7 @@ function mostrarPainel(){
 if(sessionStorage.getItem('mg_auth')==='1'){ mostrarPainel(); }
 
 // ---- LEITURA DA PLANILHA ----
-const API = 'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(ABA);
+function apiUrl(){ return 'https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(ABA); }
 
 function cellVal(row, col){
   const c = row.c && row.c[col];
@@ -142,7 +142,7 @@ function cellVal(row, col){
 
 async function carregar(){
   try{
-    const res = await fetch(API);
+    const res = await fetch(apiUrl());
     const text = await res.text();
     const json = JSON.parse(text.replace(/^[^(]+\(/,'').replace(/\);?\s*$/,''));
     CABE = json.table.cols.map(c=>c.label);
