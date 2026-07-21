@@ -136,9 +136,16 @@ function cellVal(row, col){
   if(!c || c.v == null) return '';
   if(typeof c.v === 'boolean') return c.v ? 'Sim':'Não';
   if(typeof c.v === 'string' && c.v.startsWith('Date(')){
-    const p = c.v.replace('Date(','').replace(')','').split(',');
-    const y=p[0], m=String(parseInt(p[1])+1).padStart(2,'0'), d=String(p[2]).padStart(2,'0');
-    return d+'/'+m+'/'+y;
+    // usa o valor formatado original quando disponível (ex.: 20/07/2026 15:42)
+    if(c.f) return c.f;
+    const p = c.v.replace('Date(','').replace(')','').split(',').map(x=>parseInt(x));
+    const y=p[0], m=String(p[1]+1).padStart(2,'0'), d=String(p[2]).padStart(2,'0');
+    let out = d+'/'+m+'/'+y;
+    if(p.length>3){
+      const hh=String(p[3]||0).padStart(2,'0'), mm=String(p[4]||0).padStart(2,'0');
+      out += ' '+hh+':'+mm;
+    }
+    return out;
   }
   if(c.f) return c.f;
   return String(c.v);
