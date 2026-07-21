@@ -47,6 +47,11 @@ textarea{resize:vertical;min-height:64px;}
 .msg h2{color:var(--accent-dark);margin:14px 0 8px;}
 .msg p{color:var(--muted);}
 .erro-linha{color:#c0392b;font-size:.82rem;margin-top:5px;display:none;}
+.assinatura-wrap{margin-top:16px;}
+.canvas-assinatura{width:100%;height:200px;background:#fffdfc;border:1px solid var(--line);border-radius:12px;display:block;touch-action:none;cursor:crosshair;}
+.assinatura-linha{height:1px;background:var(--line);margin:-32px 24px 0;position:relative;pointer-events:none;}
+.btn-limpar{margin-top:14px;padding:9px 20px;background:transparent;border:1px solid var(--line);border-radius:24px;color:var(--muted);font-size:.88rem;cursor:pointer;}
+.btn-limpar:hover{border-color:var(--accent);color:var(--accent-dark);}
 </style>
 </head>
 <body>
@@ -385,7 +390,12 @@ textarea{resize:vertical;min-height:64px;}
     <div class="bloco-titulo">Assinatura</div>
     <div class="termo">
       Declaro que as informações acima são verdadeiras, não cabendo ao profissional quaisquer responsabilidades por informações omitidas nessa avaliação.
-      <label class="check"><input type="checkbox" id="aceite"><span>Li e concordo com a afirmação acima.</span></label>
+      <p style="margin-top:12px;font-weight:500;">Desenhe no campo abaixo a sua assinatura conforme está no seu RG.</p>
+    </div>
+    <div class="assinatura-wrap">
+      <canvas id="canvasAssinatura" class="canvas-assinatura"></canvas>
+      <div class="assinatura-linha"></div>
+      <button type="button" class="btn-limpar" id="limparAssinatura">Limpar assinatura</button>
     </div>
   </div>
 
@@ -414,8 +424,66 @@ document.querySelectorAll('.radios input[type=radio]').forEach(r=>{
 function val(sel){const e=document.querySelector(sel);return e?e.value.trim():'';}
 function radio(name){const e=document.querySelector('input[name="'+name+'"]:checked');return e?e.value:'';}
 
+// ===== CANVAS DE ASSINATURA =====
+const canvas = document.getElementById('canvasAssinatura');
+const ctx = canvas.getContext('2d');
+let desenhando = false;
+let temAssinatura = false;
+
+function ajustaCanvas(){
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  // preserva o desenho ao redimensionar
+  const backup = temAssinatura ? canvas.toDataURL() : null;
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.lineWidth = 2.2;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = '#2b2b2b';
+  if(backup){ const img=new Image(); img.onload=()=>ctx.drawImage(img,0,0,rect.width,rect.height); img.src=backup; }
+}
+window.addEventListener('resize', ajustaCanvas);
+setTimeout(ajustaCanvas, 60);
+
+function posicao(e){
+  const rect = canvas.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+}
+function inicia(e){ e.preventDefault(); desenhando=true; const p=posicao(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); }
+function move(e){ if(!desenhando)return; e.preventDefault(); const p=posicao(e); ctx.lineTo(p.x,p.y); ctx.stroke(); temAssinatura=true; }
+function para(){ desenhando=false; }
+
+canvas.addEventListener('mousedown', inicia);
+canvas.addEventListener('mousemove', move);
+canvas.addEventListener('mouseup', para);
+canvas.addEventListener('mouseleave', para);
+canvas.addEventListener('touchstart', inicia, {passive:false});
+canvas.addEventListener('touchmove', move, {passive:false});
+canvas.addEventListener('touchend', para);
+
+document.getElementById('limparAssinatura').addEventListener('click', ()=>{
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  temAssinatura=false;
+});
+
+// Gera a assinatura comprimida: fundo branco + JPEG, recortada na área usada
+function gerarAssinatura(){
+  // desenha fundo branco por trás do traço num canvas menor
+  const alvoW = 600, alvoH = 200;
+  const out = document.createElement('canvas');
+  out.width = alvoW; out.height = alvoH;
+  const octx = out.getContext('2d');
+  octx.fillStyle = '#ffffff';
+  octx.fillRect(0,0,alvoW,alvoH);
+  octx.drawImage(canvas, 0, 0, alvoW, alvoH);
+  return out.toDataURL('image/jpeg', 0.7);
+}
+
 document.getElementById('enviar').addEventListener('click', async ()=>{
-  if(!document.getElementById('aceite').checked){alert('Você precisa marcar o aceite do termo para enviar.');return;}
+  if(!temAssinatura){alert('Por favor, desenhe a sua assinatura antes de enviar.');return;}
   const nome = val('[data-c=nome]');
   if(!nome){alert('Por favor, preencha o nome.');return;}
 
@@ -426,11 +494,10 @@ document.getElementById('enviar').addEventListener('click', async ()=>{
     if(inp && inp.name && inp.name!=='sexo') dados[inp.name] = inp.value;
   });
   dados.sexo = radio('sexo');
-  // funcionamento intestinal (select)
-  // medicações (checkboxes)
   const meds=[];document.querySelectorAll('input[data-med]:checked').forEach(c=>meds.push(c.value));
   dados.medicacoes = meds.join(', ');
   dados.aceite_termo = 'Aceito';
+  dados.assinatura = gerarAssinatura();
 
   const btn=document.getElementById('enviar');
   btn.disabled=true;btn.textContent='Enviando...';
